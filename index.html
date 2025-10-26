@@ -136,6 +136,15 @@
       margin-top: 4px;
       min-height: 18px;
     }
+    .storage-copy {
+      font-size: 13px;
+      color: #1f7a3d;
+      margin-top: 2px;
+      min-height: 18px;
+    }
+    .metric-number {
+      font-weight: 600;
+    }
     .donut {
       width: 200px;
       height: 200px;
@@ -236,7 +245,7 @@
     <div class="controls">
       <section class="panel">
         <label for="start-date">Start Date</label>
-        <input type="date" id="start-date" name="start-date" />
+        <input type="date" id="start-date" name="start-date" value="2023-06-01" />
         <label for="duration-slider" style="margin-top: 18px;">Time Window</label>
         <input type="range" id="duration-slider" name="duration-slider" min="1" max="365" value="7" />
         <div id="duration-value" class="slider-value" style="margin-top: 4px;"></div>
@@ -249,10 +258,11 @@
           <div class="slider-wrapper">
             <div class="slider-header">
               <span>Scenario 1</span>
-              <span id="nuclear-value-1" class="slider-value"></span>
+              <span id="nuclear-value-1" class="slider-value">0%</span>
             </div>
             <input type="range" id="nuclear-slider-1" min="0" max="100" step="5" value="0" />
             <div id="backup-capacity-1" class="backup-copy"></div>
+            <div id="storage-requirement-1" class="storage-copy"></div>
           </div>
           <div id="donut-1" class="donut"></div>
         </div>
@@ -260,10 +270,11 @@
           <div class="slider-wrapper">
             <div class="slider-header">
               <span>Scenario 2</span>
-              <span id="nuclear-value-2" class="slider-value"></span>
+              <span id="nuclear-value-2" class="slider-value">50%</span>
             </div>
-            <input type="range" id="nuclear-slider-2" min="0" max="100" step="5" value="20" />
+            <input type="range" id="nuclear-slider-2" min="0" max="100" step="5" value="50" />
             <div id="backup-capacity-2" class="backup-copy"></div>
+            <div id="storage-requirement-2" class="storage-copy"></div>
           </div>
           <div id="donut-2" class="donut"></div>
         </div>

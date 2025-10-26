@@ -12,9 +12,11 @@
     "Wind onshore": "#7CB9E8",
     Solar: "#FDB813",
     "Storage potential": "#2ECC71",
-    "Storage/Backup consumption": "#E74C3C",
+    "Storage consumption requirement": "#E74C3C",
     Load: "#000000"
   };
+
+  const HIGHLIGHT_COLOR = "#c0392b";
 
   const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
@@ -29,6 +31,8 @@
   const dateInfoEl = document.getElementById("date-info");
   const backup1El = document.getElementById("backup-capacity-1");
   const backup2El = document.getElementById("backup-capacity-2");
+  const storage1El = document.getElementById("storage-requirement-1");
+  const storage2El = document.getElementById("storage-requirement-2");
 
   let dataset = [];
   let minTimestamp = null;
@@ -75,18 +79,69 @@
 
   function formatBackup(value) {
     if (!Number.isFinite(value)) {
-      return "⚡ N/A";
+      return '⚡ Minimum Backup Peaker Plant/Storage requirement: <span class="metric-number">N/A</span>';
     }
-    const rounded = Math.round(value);
-    return `⚡ Minimum Backup Peaker Plant/Storage requirement: ${rounded.toLocaleString()} GW`;
+    const formatted = value.toLocaleString(undefined, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1
+    });
+    return `⚡ Minimum Backup Peaker Plant/Storage requirement: <span class="metric-number">${formatted}</span> GW`;
+  }
+
+  function formatStorageRequirement(value) {
+    if (!Number.isFinite(value)) {
+      return '🔋 Minimum Storage requirement to avoid curtailments: <span class="metric-number">N/A</span>';
+    }
+    const formatted = value.toLocaleString(undefined, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1
+    });
+    return `🔋 Minimum Storage requirement to avoid curtailments: <span class="metric-number">${formatted}</span> GW`;
+  }
+
+  function applyHighlight(element1, element2, value1, value2, highlightColor) {
+    const number1 = element1.querySelector(".metric-number");
+    const number2 = element2.querySelector(".metric-number");
+
+    if (number1) number1.style.color = "";
+    if (number2) number2.style.color = "";
+
+    const v1 = Number.isFinite(value1) ? value1 : -Infinity;
+    const v2 = Number.isFinite(value2) ? value2 : -Infinity;
+
+    if (v1 === -Infinity && v2 === -Infinity) {
+      return;
+    }
+
+    const nearlyEqual = Math.abs(v1 - v2) < 1e-9;
+
+    if (nearlyEqual) {
+      if (Number.isFinite(value1) && number1) {
+        number1.style.color = highlightColor;
+      }
+      if (Number.isFinite(value2) && number2) {
+        number2.style.color = highlightColor;
+      }
+      return;
+    }
+
+    if (v1 > v2) {
+      if (number1) number1.style.color = highlightColor;
+    } else {
+      if (number2) number2.style.color = highlightColor;
+    }
   }
 
   function clearVisuals(message) {
     Plotly.purge("energy-mix-graph");
     Plotly.purge("donut-1");
     Plotly.purge("donut-2");
-    backup1El.textContent = message || "";
-    backup2El.textContent = message || "";
+    const backupMessage = message || "";
+    const storageMessage = message ? message.replace("⚡", "🔋") : "";
+    backup1El.textContent = backupMessage;
+    backup2El.textContent = backupMessage;
+    storage1El.textContent = storageMessage;
+    storage2El.textContent = storageMessage;
   }
 
   function loadData() {
@@ -188,7 +243,7 @@
       "Wind onshore": [],
       Solar: [],
       "Storage potential": [],
-      "Storage/Backup consumption": []
+      "Storage consumption requirement": []
     };
 
     let peakSurplus = 0;
@@ -216,10 +271,10 @@
       series["Wind onshore"].push(windOnshoreGen);
       series.Solar.push(solarGen);
       series["Storage potential"].push(storagePotential);
-      series["Storage/Backup consumption"].push(storageConsumption);
+      series["Storage consumption requirement"].push(storageConsumption);
     });
 
-    const batteryCapacity = Math.max(peakSurplus, peakDeficit);
+    const batteryCapacity = peakDeficit;
 
     return {
       nuclearFraction,
@@ -227,7 +282,8 @@
       loadSeries,
       series,
       installedCapacity,
-      batteryCapacity
+      batteryCapacity,
+      storageRequirement: peakSurplus
     };
   }
 
@@ -274,16 +330,16 @@
 
       traces.push({
         type: "bar",
-        name: "Storage/Backup consumption",
+        name: "Storage consumption requirement",
         x: scenario.timestamps,
-        y: scenario.series["Storage/Backup consumption"],
-        marker: { color: colors["Storage/Backup consumption"] },
-        legendgroup: "Storage/Backup consumption",
+        y: scenario.series["Storage consumption requirement"],
+        marker: { color: colors["Storage consumption requirement"] },
+        legendgroup: "Storage consumption requirement",
         showlegend: index === 0,
         xaxis: xAxisRef,
         yaxis: yAxisRef,
         hovertemplate:
-          "<b>Storage/Backup consumption</b><br>Time: %{x}<br>Power: %{y:.2f} GW<extra></extra>"
+          "<b>Storage consumption requirement</b><br>Time: %{x}<br>Power: %{y:.2f} GW<extra></extra>"
       });
 
       traces.push({
@@ -311,7 +367,7 @@
       minNegatives.push(
         Math.min(
           ...scenario.series["Storage potential"],
-          ...scenario.series["Storage/Backup consumption"]
+          ...scenario.series["Storage consumption requirement"]
         )
       );
 
@@ -360,13 +416,13 @@
       hovermode: "x unified",
       height: 400 * scenarios.length,
       legend: {
-        orientation: "v",
+        orientation: "h",
         yanchor: "top",
-        y: 1,
-        xanchor: "left",
-        x: 1.02
+        y: -0.2,
+        xanchor: "center",
+        x: 0.5
       },
-      margin: { l: 60, r: 200, t: 80, b: 60 },
+      margin: { l: 60, r: 40, t: 80, b: 160 },
       grid: { rows: scenarios.length, columns: 1, pattern: "independent", roworder: "top to bottom" },
       shapes,
       annotations
@@ -486,8 +542,25 @@
       computeScenario(period, Number(slider2.value) / 100)
     ];
 
-    backup1El.textContent = formatBackup(scenarios[0].batteryCapacity);
-    backup2El.textContent = formatBackup(scenarios[1].batteryCapacity);
+    backup1El.innerHTML = formatBackup(scenarios[0].batteryCapacity);
+    backup2El.innerHTML = formatBackup(scenarios[1].batteryCapacity);
+    storage1El.innerHTML = formatStorageRequirement(scenarios[0].storageRequirement);
+    storage2El.innerHTML = formatStorageRequirement(scenarios[1].storageRequirement);
+
+    applyHighlight(
+      backup1El,
+      backup2El,
+      scenarios[0].batteryCapacity,
+      scenarios[1].batteryCapacity,
+      HIGHLIGHT_COLOR
+    );
+    applyHighlight(
+      storage1El,
+      storage2El,
+      scenarios[0].storageRequirement,
+      scenarios[1].storageRequirement,
+      HIGHLIGHT_COLOR
+    );
 
     renderPlots(scenarios, startLabel, endLabel);
     renderDonut("donut-1", scenarios[0].installedCapacity);

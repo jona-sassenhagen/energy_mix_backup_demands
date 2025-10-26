@@ -32,6 +32,7 @@ def create_interactive_energy_plot(df_cf, capacities_dict, colors, nuclear_fract
     """
     battery_capacities = []
     installed_capacities = []
+    storage_requirements = []
     scenario_data = []  # Store all scenario data
     
     # First pass: calculate ALL scenario data and find global limits
@@ -92,6 +93,7 @@ def create_interactive_energy_plot(df_cf, capacities_dict, colors, nuclear_fract
         peak_deficit = (-bess.clip(upper=0)).max()
         battery_capacity = max(peak_surplus, peak_deficit)
         battery_capacities.append(battery_capacity)
+        storage_requirements.append(peak_surplus)
         
         # Store data for this scenario
         scenario_data.append({
@@ -214,12 +216,13 @@ def create_interactive_energy_plot(df_cf, capacities_dict, colors, nuclear_fract
         barmode='relative',
         hovermode='x unified',
         showlegend=True,
+        margin=dict(l=60, r=40, t=80, b=160),
         legend=dict(
-            orientation="v",
+            orientation="h",
             yanchor="top",
-            y=1,
-            xanchor="left",
-            x=1.02
+            y=-0.2,
+            xanchor="center",
+            x=0.5
         )
     )
     
@@ -239,7 +242,7 @@ def create_interactive_energy_plot(df_cf, capacities_dict, colors, nuclear_fract
         fig.add_hline(y=0, line_width=1, line_dash="dash", line_color="gray", 
                       row=i, col=1)
     
-    return fig, battery_capacities, installed_capacities
+    return fig, battery_capacities, installed_capacities, storage_requirements
 
 
 def create_capacity_donut(installed_capacity, colors):
@@ -288,8 +291,8 @@ app.layout = html.Div([
                 id='start-date-picker',
                 min_date_allowed=min_date,
                 max_date_allowed=max_date,
-                initial_visible_month=min_date,
-                date=min_date,
+                initial_visible_month=pd.to_datetime('2023-06-01'),
+                date='2023-06-01',
                 display_format='YYYY-MM-DD',
                 style={'width': '100%'}
             ),
@@ -338,6 +341,13 @@ app.layout = html.Div([
                                 'color': '#2E86AB',
                                 'fontWeight': 'bold',
                                 'marginLeft': '10px'
+                            }),
+                            html.Br(),
+                            html.Span(id='storage-requirement-1', style={
+                                'fontSize': '13px',
+                                'color': '#27AE60',
+                                'fontWeight': 'bold',
+                                'marginLeft': '90px'
                             })
                         ]),
                         dcc.Slider(
@@ -345,7 +355,7 @@ app.layout = html.Div([
                             min=0,
                             max=100,
                             step=5,
-                            value=0,
+                            value=50,
                             marks={i: f'{i}%' for i in range(0, 101, 20)},
                             tooltip={"placement": "bottom", "always_visible": True}
                         ),
@@ -365,6 +375,13 @@ app.layout = html.Div([
                                 'color': '#2E86AB',
                                 'fontWeight': 'bold',
                                 'marginLeft': '10px'
+                            }),
+                            html.Br(),
+                            html.Span(id='storage-requirement-2', style={
+                                'fontSize': '13px',
+                                'color': '#27AE60',
+                                'fontWeight': 'bold',
+                                'marginLeft': '90px'
                             })
                         ]),
                         dcc.Slider(
@@ -372,7 +389,7 @@ app.layout = html.Div([
                             min=0,
                             max=100,
                             step=5,
-                            value=20,
+                            value=50,
                             marks={i: f'{i}%' for i in range(0, 101, 20)},
                             tooltip={"placement": "bottom", "always_visible": True}
                         ),
@@ -395,6 +412,8 @@ app.layout = html.Div([
      Output('date-info', 'children'),
      Output('backup-capacity-1', 'children'),
      Output('backup-capacity-2', 'children'),
+     Output('storage-requirement-1', 'children'),
+     Output('storage-requirement-2', 'children'),
      Output('donut-1', 'figure'),
      Output('donut-2', 'figure')],
     [Input('start-date-picker', 'date'),
@@ -417,6 +436,7 @@ def update_graph(start_date, duration_days, nuc1, nuc2):
     if start_date is None:
         return (go.Figure(), "Please select a start date", "", 
                 "⚡ N/A", "⚡ N/A",
+                "🔋 N/A", "🔋 N/A",
                 empty_donut, empty_donut)
     
     # Convert to datetime
@@ -446,7 +466,7 @@ def update_graph(start_date, duration_days, nuc1, nuc2):
     
     # Create figure
     try:
-        fig, battery_capacities, installed_capacities = create_interactive_energy_plot(
+        fig, battery_capacities, installed_capacities, storage_requirements = create_interactive_energy_plot(
             df_cf, 
             capacities_dict,
             colors, 
@@ -458,10 +478,14 @@ def update_graph(start_date, duration_days, nuc1, nuc2):
         # Capacities are already in the correct order
         capacity_1 = battery_capacities[0]
         capacity_2 = battery_capacities[1]
+        storage_capacity_1 = storage_requirements[0]
+        storage_capacity_2 = storage_requirements[1]
         
         # Format backup capacity displays
-        backup_display_1 = f"⚡ Minimum Backup Peaker Plant/Storage requirement: {capacity_1:,.0f} MW"
-        backup_display_2 = f"⚡ Minimum Backup Peaker Plant/Storage requirement: {capacity_2:,.0f} MW"
+        backup_display_1 = f"⚡ Minimum Backup Peaker Plant/Storage requirement: {capacity_1 / 1000:,.1f} GW"
+        backup_display_2 = f"⚡ Minimum Backup Peaker Plant/Storage requirement: {capacity_2 / 1000:,.1f} GW"
+        storage_display_1 = f"🔋 Minimum Storage requirement to avoid curtailments: {storage_capacity_1 / 1000:,.1f} GW"
+        storage_display_2 = f"🔋 Minimum Storage requirement to avoid curtailments: {storage_capacity_2 / 1000:,.1f} GW"
         
         # Create donut charts
         donut_1 = create_capacity_donut(installed_capacities[0], colors)
@@ -469,10 +493,12 @@ def update_graph(start_date, duration_days, nuc1, nuc2):
         
         return (fig, warning_message, date_info, 
                 backup_display_1, backup_display_2,
+                storage_display_1, storage_display_2,
                 donut_1, donut_2)
     except Exception as e:
         return (go.Figure(), f"⚠️ Error: {str(e)}", date_info, 
                 "⚡ Error", "⚡ Error",
+                "🔋 Error", "🔋 Error",
                 empty_donut, empty_donut)
 
 
